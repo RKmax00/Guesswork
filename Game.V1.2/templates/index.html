@@ -1,0 +1,257 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#07110B">
+  <title>GUESSWORK — Number Game</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body data-message-type="{{ game.message_type if game else 'neutral' }}" data-status="{{ game.status if game else 'idle' }}">
+  <div class="site-shell">
+    <header class="topbar">
+      <a class="wordmark" href="{{ url_for('index') }}" aria-label="Guesswork home"><span class="mark">G.</span> GUESSWORK</a>
+      <div class="header-actions">
+        <button class="sound-toggle" type="button" id="sound-toggle" aria-pressed="true" aria-label="Mute sound effects">
+          <span class="sound-icon" aria-hidden="true">♪</span><span id="sound-label">SOUND ON</span>
+        </button>
+        <div class="top-note"><span class="live-dot"></span> TERMINAL READY</div>
+      </div>
+    </header>
+
+    <main>
+      {% if not game %}
+      <section class="intro">
+        <p class="eyebrow">SYSTEM / 001 — READY</p>
+        <h1>THINK.<br><span>TYPE. WIN.</span></h1>
+        <p class="intro-copy">A hidden integer. A limited number of attempts. Use the clues and beat your own record.</p>
+      </section>
+
+      <section class="setup">
+        <div class="section-heading">
+          <span>01 / SELECT YOUR RANGE</span>
+          <span class="small-muted">Four levels. One hidden number.</span>
+        </div>
+        <form action="{{ url_for('index') }}" method="post" class="level-list">
+          {% for name, cfg in [
+            ("easy", {"maximum": 10, "attempt_limit": 2}),
+            ("medium", {"maximum": 50, "attempt_limit": 4}),
+            ("hard", {"maximum": 100, "attempt_limit": 9}),
+            ("hardest", {"maximum": 1000, "attempt_limit": 14})
+          ] %}
+          <button class="level-row" type="submit" name="difficulty" value="{{ name }}">
+            <span class="level-name">{{ name }}</span>
+            <span class="level-range">01 — {{ cfg.maximum }}</span>
+            <span class="level-attempts">{{ cfg.attempt_limit }} tries</span>
+            <span class="level-arrow" aria-hidden="true">↗</span>
+          </button>
+          {% endfor %}
+        </form>
+        {% if error %}<p class="form-error">{{ error }}</p>{% endif %}
+      </section>
+
+      <section class="bottom-strip">
+        <div><span class="strip-label">THE RULE</span><p>Every guess tells you something.</p></div>
+        <div><span class="strip-label">YOUR PERSONAL BEST</span><p>{% if best is not none %}{{ best }} {{ 'attempt' if best == 1 else 'attempts' }}{% else %}Not set yet{% endif %}</p></div>
+      </section>
+
+      {% else %}
+      <section class="game-topline">
+        <a class="back-link" href="{{ url_for('restart') }}">← CHANGE LEVEL</a>
+        <span class="level-chip">{{ game.difficulty }} <i>·</i> 01—{{ game.maximum }}</span>
+      </section>
+
+      <section class="play-layout">
+        <div class="play-main">
+          <p class="eyebrow">FIND THE HIDDEN NUMBER</p>
+          <div class="range-label">BETWEEN <strong>1</strong> AND <strong>{{ game.maximum }}</strong></div>
+          <div class="guess-display {% if game.status == 'won' %}is-win{% endif %}">
+            {% if game.status == 'won' %}{{ game.number }}{% else %}<span>?</span>{% endif %}
+          </div>
+          <div class="feedback feedback-{{ game.message_type }}" role="status" aria-live="polite">
+            <span class="feedback-symbol">{% if game.message_type == 'low' %}↓{% elif game.message_type == 'high' %}↑{% elif game.message_type == 'win' %}✳{% elif game.message_type == 'lost' %}×{% else %}—{% endif %}</span>
+            {{ game.message }}
+          </div>
+
+          {% if game.status == 'playing' %}
+          <form action="{{ url_for('guess') }}" method="post" class="guess-form">
+            <label for="guess">YOUR GUESS</label>
+            <div class="guess-input-row">
+              <input id="guess" name="guess" type="number" min="1" max="{{ game.maximum }}" placeholder="?" autocomplete="off" required autofocus>
+              <button type="submit" class="submit-guess">GUESS <span>↗</span></button>
+            </div>
+            <div class="input-foot"><span>WHOLE NUMBERS ONLY</span><span>ENTER ↵</span></div>
+          </form>
+          {% else %}
+          <div class="end-panel">
+            {% if game.status == 'won' %}
+              <p class="end-title">{% if game.new_best %}NEW PERSONAL BEST{% else %}NICE WORK{% endif %}</p>
+              <p class="end-copy">You got there in {{ game.attempts }} {{ 'attempt' if game.attempts == 1 else 'attempts' }}.</p>
+            {% else %}
+              <p class="end-title">ROUND OVER</p>
+              <p class="end-copy">The answer was <strong>{{ game.number }}</strong>. There's always another round.</p>
+            {% endif %}
+            <a class="play-again" href="{{ url_for('restart') }}">PLAY AGAIN <span>↗</span></a>
+          </div>
+          {% endif %}
+
+          {% if game.hint_even_odd %}
+          <div class="hint-line"><span class="hint-tag">CLUE UNLOCKED</span> The number is {{ game.even_odd_hint }}.</div>
+          {% endif %}
+          {% if game.hint_range %}
+          <div class="hint-line"><span class="hint-tag">CLUE UNLOCKED</span> The number is between {{ game.hint_range[0] }} and {{ game.hint_range[1] }}.</div>
+          {% endif %}
+        </div>
+
+        <aside class="play-aside">
+          <div class="stat-block">
+            <span class="stat-label">ATTEMPTS USED</span>
+            <div class="stat-number">{{ game.attempts }}<span> / {{ game.attempt_limit }}</span></div>
+            <div class="attempt-track" aria-label="{{ game.attempts }} of {{ game.attempt_limit }} attempts used">
+              {% for i in range(game.attempt_limit) %}<span class="{% if i < game.attempts %}used{% endif %}"></span>{% endfor %}
+            </div>
+          </div>
+          <div class="stat-block">
+            <span class="stat-label">PERSONAL BEST</span>
+            <div class="stat-number">{% if best is not none %}{{ best }}{% else %}—{% endif %}<span>{% if best is not none %} attempts{% endif %}</span></div>
+          </div>
+          <div class="history-block">
+            <div class="history-title"><span>GUESS LOG</span><span>{{ game.history|length }} ENTRIES</span></div>
+            {% if game.history %}
+              <ol class="guess-log">
+              {% for item in game.history %}
+                <li class="log-{{ item.result }}"><span class="log-number">{{ item.guess }}</span><span class="log-result">{% if item.result == 'correct' %}FOUND IT{% elif item.result == 'low' %}TOO LOW ↓{% else %}TOO HIGH ↑{% endif %}</span></li>
+              {% endfor %}
+              </ol>
+            {% else %}
+              <p class="empty-log">Your guesses will show up here. Make the first move.</p>
+            {% endif %}
+          </div>
+        </aside>
+      </section>
+      {% endif %}
+    </main>
+
+    <footer class="footer">
+      <span>GUESSWORK / END OF TRANSMISSION</span>
+      <span>NO LUCK REQUIRED. MAYBE.</span>
+    </footer>
+  </div>
+
+  <script>
+    (() => {
+      const toggle = document.querySelector('#sound-toggle');
+      const label = document.querySelector('#sound-label');
+      const STORE = 'guesswork-sound';
+      let enabled = true;
+      try { enabled = localStorage.getItem(STORE) !== 'off'; } catch (_) {}
+      let ctx = null;
+      let ambient = null;
+
+      function audio() {
+        const Ctx = window.AudioContext || window.webkitAudioContext;
+        if (!Ctx) return null;
+        if (!ctx) ctx = new Ctx();
+        if (ctx.state === 'suspended') ctx.resume().catch(() => {});
+        return ctx;
+      }
+      function tone(freq, end, duration, volume, delay = 0, type = 'sine') {
+        if (!enabled) return;
+        const c = audio();
+        if (!c) return;
+        const start = c.currentTime + delay;
+        const osc = c.createOscillator();
+        const gain = c.createGain();
+        osc.type = type;
+        osc.frequency.setValueAtTime(freq, start);
+        osc.frequency.exponentialRampToValueAtTime(Math.max(30, end), start + duration);
+        gain.gain.setValueAtTime(0.0001, start);
+        gain.gain.exponentialRampToValueAtTime(volume, start + Math.min(0.018, duration / 3));
+        gain.gain.exponentialRampToValueAtTime(0.0001, start + duration);
+        osc.connect(gain); gain.connect(c.destination);
+        osc.start(start); osc.stop(start + duration + 0.025);
+      }
+      function startAmbient() {
+        if (!enabled || ambient) return;
+        const c = audio();
+        if (!c) return;
+        const master = c.createGain();
+        const filter = c.createBiquadFilter();
+        const osc1 = c.createOscillator();
+        const osc2 = c.createOscillator();
+        const blend = c.createGain();
+        filter.type = 'lowpass'; filter.frequency.value = 160; filter.Q.value = 0.45;
+        osc1.type = 'sine'; osc1.frequency.value = 55;
+        osc2.type = 'sine'; osc2.frequency.value = 82.4;
+        blend.gain.value = 0.18;
+        master.gain.value = 0.00001;
+        osc1.connect(blend); osc2.connect(blend);
+        blend.connect(filter); filter.connect(master); master.connect(c.destination);
+        osc1.start(); osc2.start();
+        master.gain.setTargetAtTime(0.009, c.currentTime, 0.8);
+        ambient = { master, osc1, osc2 };
+      }
+      function stopAmbient() {
+        if (!ambient || !ctx) return;
+        const old = ambient; ambient = null;
+        old.master.gain.setTargetAtTime(0.00001, ctx.currentTime, 0.1);
+        window.setTimeout(() => {
+          try { old.osc1.stop(); old.osc2.stop(); } catch (_) {}
+        }, 700);
+      }
+      function updateToggle() {
+        toggle?.setAttribute('aria-pressed', String(enabled));
+        toggle?.setAttribute('aria-label', enabled ? 'Turn sound off' : 'Turn sound on');
+        if (label) label.textContent = enabled ? 'SOUND ON' : 'SOUND OFF';
+        const icon = toggle?.querySelector('.sound-icon');
+        if (icon) icon.textContent = enabled ? '♪' : '×';
+      }
+      updateToggle();
+
+      toggle?.addEventListener('click', () => {
+        enabled = !enabled;
+        try { localStorage.setItem(STORE, enabled ? 'on' : 'off'); } catch (_) {}
+        updateToggle();
+        if (enabled) {
+          tone(620, 720, 0.07, 0.018);
+          startAmbient();
+        } else {
+          stopAmbient();
+        }
+      });
+
+      // A browser gesture is required before audio can start. Ambient sound is a
+      // barely audible low terminal hum, not music, and can be muted at any time.
+      const unlock = () => {
+        if (enabled) startAmbient();
+      };
+      window.addEventListener('pointerdown', unlock, { once: true });
+      window.addEventListener('keydown', unlock, { once: true });
+
+      const type = document.body.dataset.messageType;
+      const status = document.body.dataset.status;
+      const attemptCount = document.querySelector('.stat-number')?.textContent?.trim() || '0';
+      const eventKey = `${status}:${type}:${attemptCount}`;
+      let alreadyPlayed = false;
+      try {
+        alreadyPlayed = sessionStorage.getItem('guesswork-last-sound-event') === eventKey;
+        if (!alreadyPlayed) sessionStorage.setItem('guesswork-last-sound-event', eventKey);
+      } catch (_) {}
+
+      if (!alreadyPlayed) {
+        if (type === 'low') tone(345, 295, 0.075, 0.014, 0, 'triangle');
+        if (type === 'high') tone(435, 365, 0.075, 0.014, 0, 'triangle');
+        if (status === 'won') {
+          tone(523.25, 523.25, 0.11, 0.024);
+          tone(659.25, 659.25, 0.13, 0.024, 0.09);
+          tone(784, 880, 0.18, 0.027, 0.18);
+        } else if (status === 'lost') {
+          tone(300, 245, 0.12, 0.017);
+          tone(220, 175, 0.15, 0.014, 0.10);
+        }
+      }
+    })();
+  </script>
+
+</body>
+</html>

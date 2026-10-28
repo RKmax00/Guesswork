@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#07110B">
+  <title>{{ code }} — GUESSWORK</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <div class="site-shell error-page">
+    <header class="topbar">
+      <a class="wordmark" href="{{ url_for('index') }}"><span class="mark">G.</span> GUESSWORK</a>
+      <div class="top-note"><span class="live-dot"></span> TERMINAL READY</div>
+    </header>
+    <main class="error-content">
+      <p class="eyebrow">ERROR / {{ code }}</p>
+      <h1>{{ title }}<br><span>TRY AGAIN.</span></h1>
+      <p class="intro-copy">{{ message }}</p>
+      <a class="play-again" href="{{ url_for('restart') }}">RETURN TO GAME <span>↗</span></a>
+    </main>
+    <footer class="footer"><span>GUESSWORK / VINTAGE EDITION</span><span>END OF TRANSMISSION</span></footer>
+  </div>
+</body>
+</html>
